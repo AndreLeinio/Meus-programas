@@ -1,0 +1,13 @@
+$TTL     10000
+@        IN      SOA       chewbacca.lavajato.com. admin.chewbacca.lavajato.com. (
+				2016090401 ;serial
+				30         ;refresh
+				15         ;retry
+				60000      ;expire
+				0          ;negative cache ttl
+ 				)
+
+@           IN      NS        chewbacca.lavajato.com.
+chewbacca   IN      A         195.0.3.10
+vader       IN      A         195.0.4.10
+www	    IN      CNAME     vader

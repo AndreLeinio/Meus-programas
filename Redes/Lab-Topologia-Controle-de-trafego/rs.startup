@@ -1,0 +1,7 @@
+ifconfig eth0 172.16.0.1 netmask 255.255.255.0
+ifconfig eth1 10.0.1.2 netmask 255.255.255.0
+
+route add -net 192.168.0.0 netmask 255.255.255.0 gw 10.0.1.1 dev eth1
+
+tc qdisc add dev eth0 root tbf rate 50mbit latency 50ms burst 15000
+tc qdisc add dev eth1 root tbf rate 50mbit latency 50ms burst 15000
