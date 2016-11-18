@@ -1,0 +1,22 @@
+Aplicação Cliente-servidor para tranfrencia de arquivos
+paralelizado com openMP
+
+Para compilar:
+
+gcc ServidorArquivos.c -o servidor -m32 -fopenmp
+gcc ClienteArquivos.c -o cpd -m32
+cp cpd ./pc1/root
+cp servidor ./s/root
+lstart
+
+Na maquina virtual s do netkit:
+
+./servidor
+
+Na maquina virtual pc1:
+
+Para upload de arquivo : 
+	./cpd <addressOfFileToBeSent> <destinationIP>:<addressOfFile>
+
+Para download de arquivo:
+	./cpd <destinationIP>:<addressOfFile> <addressOfFileToBeSent>
