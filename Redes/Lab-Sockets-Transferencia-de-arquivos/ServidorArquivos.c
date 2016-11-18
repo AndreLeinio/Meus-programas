@@ -43,6 +43,7 @@ int RFile(char* path, int sendToSocket ){
   //closes the file
   fclose(file);
   close(sendToSocket);
+  printf("END\n");
   return 0;
 }
 
@@ -94,6 +95,7 @@ int SFile(char* path, int sendToSocket ){
 
   close(file);
   close(sendToSocket);
+  printf("END\n");
   return 0;
 }
 
@@ -133,8 +135,13 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
   }
   int client_len = sizeof(clientSocketAddress);
 
-  while(1){
+  #pragma omp parallel private(filename)
+  {
 
+  #pragma omp single
+  {
+
+  while(1){
     bzero(&clientSocketAddress, client_len);
     printf("Aguardando conexao\n");
     sendToSocket = accept(listenToSocket,
@@ -146,36 +153,41 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
       continue;
     }
 
-    //Tratar solicitação
-    //Recebe operacao e path para o arquivo a ser enviado ou recebido
-    printf("Conectado ao servidor. Aguardando operacao\n");
-    bzero(&filename, sizeof(filename));
-    int tam = read( sendToSocket, filename, MSG_LEN);
+    #pragma omp task firstprivate(sendToSocket)
+    {
 
-    filename[tam] = '\0';
-    char op = filename[0];
-    char path[tam];
-    strncpy(path, filename+1,tam-1);
+      //Tratar solicitação
+      //Recebe operacao e path para o arquivo a ser enviado ou recebido
+      printf("Conectado ao servidor. Aguardando operacao\n");
+      bzero(&filename, sizeof(filename));
+      int tam = read( sendToSocket, filename, MSG_LEN);
 
-
-    //chamar função correspondente
-    if(op == 'u'){//Receive file from client
-        printf("Sera enviado o arquivo: %s\n",path);
-        RFile(path,sendToSocket);
-    }
-    else if(op == 'd'){//Send file to client
-      printf("Solicitado o arquivo: %s\n",path);
-      SFile(path, sendToSocket);
-    }
-    else{
-      perror("invalid operation");
-      close(sendToSocket);
-      continue;
-    }
+      filename[tam] = '\0';
+      char op = filename[0];
+      char path[tam];
+      strncpy(path, filename+1,tam-1);
 
 
-    printf("END\n");
+      //chamar função correspondente
+      if(op == 'u'){//Receive file from client
+          printf("Sera enviado o arquivo: %s\n",path);
+          RFile(path,sendToSocket);
+      }
+      else if(op == 'd'){//Send file to client
+        printf("Solicitado o arquivo: %s\n",path);
+        SFile(path, sendToSocket);
+      }
+      else{
+        perror("invalid operation");
+        close(sendToSocket);
+        
+      }
 
-}
+    }//close pragma task
+
+
+  }//close while(1)
+  }//close pragma single
+  }//close pragma parallel
 
 }
