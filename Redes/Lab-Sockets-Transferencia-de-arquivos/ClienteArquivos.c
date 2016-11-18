@@ -11,39 +11,37 @@
 #include <sys/sendfile.h>
 #include <fcntl.h>
 
-#define MSG_LEN (64*1024)
+#define MSG_LEN 256
 #define MAX_CON 1024
 #define PORT 1337
 
 
 //Realiza o download de aquivo do servidor
 int RFile(char* path, int sendToSocket ){
-  //opens the file
+
+  //declara e zera posições do buffer de recebimento
   char dataBuffer[MSG_LEN];
-
-  //recebe tamanho do arquivo
   bzero(dataBuffer,MSG_LEN);
-  // int size;
-  // printf("Aguardando tamanho do arquivo\n");
-  // read(sendToSocket, &size, sizeof(size));
-  // size = ntohl(size);
 
-
-  int file = open (path, O_RDONLY);
-  if(file < 0){
+  //Abre Arquivo para escrita
+  FILE* file =  fopen(path, "w+" );
+  if(file == NULL){
 		perror(path);
 		return -1;
 	}
+
+  //Inicio da transmissao
   int recv;
-  bzero(dataBuffer,MSG_LEN);
-  // printf("Recebendo %d bytes de arquivo...\n", size);
   while(((recv = read(sendToSocket,dataBuffer,MSG_LEN)) > 0)){
-    write(file,dataBuffer,MSG_LEN); //writes it to the file
-    // size -= recv;
-    // printf("%d bytes faltando\n", size);
+
+    //Salva dados no arquivo
+    fwrite(dataBuffer,1,recv,file );
+    bzero(dataBuffer,MSG_LEN);
+    printf("Recebidos %d bytes\n",recv);
   }
+
   //closes the file
-  close(file);
+  fclose(file);
   close(sendToSocket);
   return 0;
 }
@@ -54,38 +52,26 @@ int SFile(char* path, int sendToSocket ){
 
   char* dataBuffer[MSG_LEN];
 
-  // //busca arquivo
-  // if( access( path, F_OK ) == -1 ) {
-  //   // file don't exists
-  //   perror("file don't exists");
-  //   return -1;
-  //
-  // }
-  //
-
   // enviar tamanho do arquivo
-  int file = open(path, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
+  int file = open(path, O_RDONLY );
   if(file < 0){
     perror(path);
     return -1;
   }
 
+  //Salva tamanho do arquivo
   int size = lseek (file, 0, SEEK_END);
-  // int size = tell (file);
   lseek(file,0,SEEK_SET);
-  //int sizeS = htonl(sizeS);
-  // size_t status = write(sendToSocket,&size, sizeof(size));
-  // if(status == -1){
-  //   printf("send failed :%s", strerror(errno));
-  // }
 
   //Envio do arquivo
   int sent = 0;
+  int total_size = size;
+
   off_t offset = 0;
     printf("Enviando %d bytes\n",size);
-  while (((sent = sendfile(sendToSocket, file, &offset, MSG_LEN)) > 0) && (size > 0)) {
+  while (((sent = sendfile(sendToSocket, file, &offset, MSG_LEN)) > 0) ) {
       size -= sent;
-      printf("%d bytes faltando\n", size);
+      printf("%.2f%% concluido \n", 100.0-((size*100.0)/total_size) );
   }
 
   close(file);
@@ -122,7 +108,6 @@ int main(int argc,char**argv){
     }
   }
   if(server_not_found){
-    printf("server not found yet\n");
     filename = argv[2];
     path_local = argv[1];
     for(i = 0; filename[i] != '\0';i++){
@@ -149,7 +134,7 @@ int main(int argc,char**argv){
   struct sockaddr_in clientSocketAddress;
 
   //setting the listening to the socket to identify a response from the server
-  printf("Socket\n");
+  printf("Criando Socket\n");
   listenToSocket = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
 
   //cleaning (setting to zero) the memory to be used
@@ -175,7 +160,7 @@ int main(int argc,char**argv){
   }
   msg[strlen(path_server) + 1] = '\0';
 
-  printf("enviando operacao ao servidor : %s\n", msg);
+  printf("Conectado..enviando operacao ao servidor : %s\n", msg);
   write(listenToSocket, msg, MSG_LEN);
 
   if(op == 'd'){

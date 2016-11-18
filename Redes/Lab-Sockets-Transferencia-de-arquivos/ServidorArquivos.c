@@ -11,41 +11,37 @@
 #include <fcntl.h>
 #include<omp.h>
 
-#define MSG_LEN (64*1024)
+#define MSG_LEN 256
 #define MAX_CON 1024
 #define PORT 1337
 
 
 //Realiza e download do aquivo do cliente
 int RFile(char* path, int sendToSocket ){
-  //opens the file
+
+  //declara e zera posições do buffer de recebimento
   char dataBuffer[MSG_LEN];
+  bzero(dataBuffer,MSG_LEN);
 
-  //recebe tamanho do arquivo
-  // bzero(dataBuffer,MSG_LEN);
-  // int size;
-  // printf("Aguardando tamanho do arquivo\n");
-  // read(sendToSocket, &size, sizeof(size));
-  // size = ntohl(size);
-
-  //fills in the vector with the desired value (binary from file)
-  int file =  open(path, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-  if(file < 0){
+  //Abre Arquivo para escrita
+  FILE* file =  fopen(path, "w+" );
+  if(file == NULL){
 		perror(path);
 		return -1;
 	}
+
+  //Inicio da transmissao
   int recv;
-  bzero(dataBuffer,MSG_LEN);
-  // printf("Recebendo %d bytes de arquivo...\n", size);
-  while(((recv = read(sendToSocket,dataBuffer,MSG_LEN)) > 0)){
-    write(file,dataBuffer,MSG_LEN); //writes it to the file
-    // size -= recv;
-    // printf("%d bytes faltando\n",size);
+  while((recv = read(sendToSocket,dataBuffer,MSG_LEN)) > 0){
+
+    //Salva dados no arquivo
+    fwrite(dataBuffer,1,recv,file );
+    bzero(dataBuffer,MSG_LEN);
+    printf("Recebidos %d bytes\n",recv);
   }
 
-
   //closes the file
-  close(file);
+  fclose(file);
   close(sendToSocket);
   return 0;
 }
@@ -62,37 +58,38 @@ int SFile(char* path, int sendToSocket ){
     // file exists
     int res = 302; //FOUND
     write(sendToSocket,&res, sizeof(res));
+    printf("Arquivo Encontrado\n");
 
   }
   else {
     // file doesn't exist
     int res = 404; // NOT FOUND
     write(sendToSocket,&res, sizeof(res));
+    printf("Arquivo Não Encontrado... Finalizando\n");
     close(sendToSocket);
     return -1;
 
   }
 
-  // enviar tamanho do arquivo
+  // Abre arquivo para leitura
   int file = open(path, O_RDONLY);
   if(file < 0){
     perror(path);
     return -1;
   }
+
+  //Salva tamanho do arquivo
   int size = lseek (file, 0, SEEK_END);
-  // int size = tell (file);
   lseek(file,0,SEEK_SET);
-  //int sizeS = htonl(sizeS);
-  // printf("Enviando tamanho do arquivo\n");
-  // write(sendToSocket,&size, sizeof(size));
 
   //Envio do arquivo
   int sent = 0;
+  int total_size = size;
   off_t offset = 0;
   printf("Enviando %d bytes\n",size);
   while (((sent = sendfile(sendToSocket, file, &offset, MSG_LEN)) > 0) && (size > 0)) {
       size -= sent;
-      printf("%d bytes faltando\n", size);
+      printf("%.2f%% concluido \n", 100.0-((size*100.0)/total_size) );
   }
 
   close(file);
@@ -137,7 +134,6 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
   int client_len = sizeof(clientSocketAddress);
 
   while(1){
-  //stating the client habilitation and connection
 
     bzero(&clientSocketAddress, client_len);
     printf("Aguardando conexao\n");
@@ -149,12 +145,10 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
       perror("Accept error.");
       continue;
     }
-    //printf("Conectado com %d:%s\n",clientSocketAddress.sin_port,clientSocketAddress.sin_addr);
-
 
     //Tratar solicitação
     //Recebe operacao e path para o arquivo a ser enviado ou recebido
-    printf("Aguardando operacao\n");
+    printf("Conectado ao servidor. Aguardando operacao\n");
     bzero(&filename, sizeof(filename));
     int tam = read( sendToSocket, filename, MSG_LEN);
 
@@ -166,11 +160,11 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
 
     //chamar função correspondente
     if(op == 'u'){//Receive file from client
-        printf("Preparando para receber arquivo: %s\n",path);
+        printf("Sera enviado o arquivo: %s\n",path);
         RFile(path,sendToSocket);
     }
     else if(op == 'd'){//Send file to client
-      printf("Preparando para enviar arquivo: %s\n",path);
+      printf("Solicitado o arquivo: %s\n",path);
       SFile(path, sendToSocket);
     }
     else{
@@ -180,7 +174,7 @@ struct sockaddr_in clientSocketAddress; //address of the client socket
     }
 
 
-    printf("Operação concluida\n");
+    printf("END\n");
 
 }
 
